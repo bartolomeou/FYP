@@ -12,12 +12,12 @@ logpi_gauss <- function(x, location = 0, scale = 1) {
 
 # Function to implement the Random Walk Metropolis algorithm for a d-dimensional
 # target distribution
-RWM <- function(logpi, n_iter, h, x_curr) {
+RWM <- function(logpi, n_iter, h, x_curr, ...) {
   # Number of dimensions
   d <- length(x_curr)
 
   # Calculate the logarithm of the target distribution at the current state
-  logpi_curr <- logpi(x_curr)
+  logpi_curr <- logpi(x_curr, ...)
 
   # Counter for accepted proposals
   accepted <- 0
@@ -28,7 +28,7 @@ RWM <- function(logpi, n_iter, h, x_curr) {
   for (i in 1:n_iter) {
     # Propose a candidate move
     x_prop <- x_curr + h * rnorm(1)
-    logpi_prop <- logpi(x_prop)
+    logpi_prop <- logpi(x_prop, ...)
 
     # Calculate the difference in the log-probabilities of the proposed and
     # current states (i.e. \log \frac{\pi(y)}{\pi(x)})
@@ -98,7 +98,8 @@ plot(step_size_grid, mc_a_rates,
 )
 axis(1, at = step_size_grid)
 
-matplot(1:n_iter, t(mc_samples[, 1, ]), ylim = range(mc_samples), type = "l", 
+matplot(1:n_iter, t(mc_samples[, 1, ]),
+  ylim = range(mc_samples), type = "l",
   xlab = "t", ylab = expression(X[1](t)),
   col = 1:n, lty = 1
 )
@@ -128,7 +129,7 @@ logpi_laplace <- function(x, location = 0, scale = 1) {
 
 # Function to calculate the logarithm of the Cauchy pdf at `x`
 logpi_cauchy <- function(x, location = 0, scale = 1) {
-  dcauchy(x, location = location, scale = scale)
+  dcauchy(x, location = location, scale = scale, log = TRUE)
 }
 
 
@@ -138,7 +139,8 @@ n_iter <- 500
 
 mc_g <- RWM(logpi = logpi_gauss, n_iter = n_iter, h = 2.5, x_curr = initial)
 mc_l <- RWM(logpi = logpi_laplace, n_iter = n_iter, h = 2.5, x_curr = initial)
-mc_c <- RWM(logpi = logpi_cauchy, n_iter = n_iter, h = 4, x_curr = initial)
+mc_c <- RWM(logpi = logpi_cauchy, n_iter = n_iter, h = 5, x_curr = initial)
+
 cat(
   "Acceptance rate for:\n\t- Gaussian target distribution:", mc_g$a_rate,
   "\n\t- Laplce target distribution", mc_l$a_rate,
@@ -177,17 +179,89 @@ mc_warm_cold_samples <- rbind(
 
 limits <- range(mc_warm_cold_samples)
 limits[1] <- limits[1] - 50
-matplot(1:n_iter, t(mc_warm_cold_samples), ylim = limits,
-        type = "l", xlab = "t", ylab = expression(X[1](t)), 
-        col = brewer.pal(n = 6, name='Paired'), lty = 1)
-legend("bottom", legend = c('Gaussian (warm start)', 'Gaussian (cold start)', 
-                 'Laplace (warm start)', 'Laplace (cold start)',
-                 'Cauchy (warm start)', 'Cauchy (cold start)'), 
-       ncol = 3, col = brewer.pal(n = 6, name='Paired'), lty = 1, lwd = 2, cex = 0.7, bty = "n"
+matplot(1:n_iter, t(mc_warm_cold_samples),
+  ylim = limits,
+  type = "l", xlab = "t", ylab = expression(X[1](t)),
+  col = brewer.pal(n = 6, name = "Paired"), lty = 1
+)
+legend("bottom",
+  legend = c(
+    "Gaussian (warm start)", "Gaussian (cold start)",
+    "Laplace (warm start)", "Laplace (cold start)",
+    "Cauchy (warm start)", "Cauchy (cold start)"
+  ),
+  ncol = 3, col = brewer.pal(n = 6, name = "Paired"), lty = 1, lwd = 2, cex = 0.7, bty = "n"
 )
 
-# The Gaussian and Laplace distribution is more robust to a cold start. This is because
+# The Gaussian and Laplace distributions are more robust to a cold start. This is because
 # even if the sampler starts far from the mean, it will more likely to accept proposals
 # that are closer to the center of the distribution due to higher probability density.
-# Proposals of large jumps in the extreme are unlikely sice the probability density
-# decreases rapidly in the tails.
+# Proposals of large jumps in the extreme are unlikely since the probability density
+# decreases rapidly away from the mean.
+
+
+
+### HETEROGENEOUS TARGETS
+library(mvtnorm)
+
+
+logpi_het <- function(x, location, scale) {
+  dmvnorm(x, mean = location, sigma = scale, log = TRUE)
+}
+
+
+n_iter <- 5000
+initial <- 0
+
+mc_h <- RWM(
+  logpi = logpi_het, n_iter = n_iter, h = 5.2, x_curr = rep(initial, 2),
+  location = rep(0, 2), scale = diag(c(1000, 1))
+)
+mc_h$a_rate
+
+par(mfrow = c(2, 1))
+plot(mc_h$x_store[1, ], type = "l", xlab = "t", ylab = expression(X[1](t)))
+plot(mc_h$x_store[2, ], type = "l", xlab = "t", ylab = expression(X[2](t)))
+
+
+n_iter <- 1000
+
+mc_corr0.1 <- RWM(
+  logpi = logpi_het, n_iter = n_iter, h = 3.8, x_curr = rep(initial, 2),
+  location = rep(0, 2), scale = matrix(c(1, 0.1, 0.1, 1), ncol = 2)
+)
+mc_corr0.1$a_rate
+
+mc_corr0.9 <- RWM(
+  logpi = logpi_het, n_iter = n_iter, h = 5, x_curr = rep(initial, 2),
+  location = rep(0, 2), scale = matrix(c(1, 0.9, 0.9, 1), ncol = 2)
+)
+mc_corr0.9$a_rate
+
+colors <- brewer.pal(3, "Accent")
+
+par(
+  mfrow = c(2, 1),
+  mar = c(4, 4, 2, 1),
+  oma = c(2, 2, 2, 2),
+  xpd = NA
+)
+
+limits <- range(mc_corr0.1$x_store, mc_corr0.9$x_store)
+
+plot(mc_corr0.1$x_store[1, ],
+  type = "l", ylim = limits,
+  xlab = "t", ylab = expression(X[1](t)), col = colors[1]
+)
+lines(mc_corr0.9$x_store[1, ], col = colors[2])
+
+legend("top",
+  inset = c(1, -0.25), legend = c(expression(rho == 0.1), expression(rho == 0.9)),
+  horiz = TRUE, col = colors[1:2], lty = 1, lwd = 2, bty = "n"
+)
+
+plot(mc_corr0.1$x_store[2, ],
+  type = "l", ylim = limits,
+  xlab = "t", ylab = expression(X[2](t)), col = colors[1]
+)
+lines(mc_corr0.9$x_store[2, ], col = colors[2])
