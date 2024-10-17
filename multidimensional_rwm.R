@@ -62,13 +62,13 @@ cat("The acceptance rate is: ", mc$a_rate)
 
 
 # Testing different step sizes and examining its effect on the acceptance rate
-start <- 0.001 # Starting value for the smallest step size
-multiplier <- 2 # Multiplier to increase the step size
+start <- 0.01 # Starting value for the smallest step size
+multiplier <- 2.5 # Multiplier to increase the step size
 n <- 8 # Number of step sizes
-step_size_grid <- start * multiplier^(0:(n - 1))
+step_size_grid <- signif(start * multiplier^(0:(n - 1)), digits=2)
 
 n_dim <- 2 # Dimension of the target distribution
-n_iter <- 200
+n_iter <- 2000
 
 # Array to store samples (#step sizes, #dimensions, #iterations)
 mc_samples <- array(NA, dim = c(n, n_dim, n_iter))
@@ -96,5 +96,12 @@ axis(1, at = step_size_grid)
 matplot(1:n_iter, t(mc_samples[, 1, ]), type = "l", 
         xlab = "t", ylab = expression(X[1](t)), 
         col = 1:n, lty = 1, ylim = range(mc_samples[, 1, ]))
-legend("bottom", legend = step_size_grid, horiz = TRUE, 
+legend("bottom", legend = step_size_grid, ncol = ceiling(n/2), 
        col = 1:n, lty = 1, lwd = 2, cex = 0.7, bty = "n")
+
+
+# 10-dimensional Gaussian target distribution
+n_iter <- 2000
+step_size <- 5
+mc_10d <- RWM(logpi = logpi_gauss, n_iter = n_iter, h = step_size, x_curr = rep(0, 10))
+cat('The acceptance rate is', mc_10d$a_rate)
