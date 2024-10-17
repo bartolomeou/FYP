@@ -1,9 +1,12 @@
+library(RColorBrewer)
 set.seed(759)
 
 
+
+### BUILDING A MULTI-DIMENSIONAL RWM ALGORITHM
 # Function to calculate the logarithm of the Gaussian pdf at `x`
-logpi_gauss <- function(x, mu = 0, sigma = 1) {
-  dnorm(x, mean = mu, sd = sigma, log = TRUE)
+logpi_gauss <- function(x, location = 0, scale = 1) {
+  dnorm(x, mean = location, sd = scale, log = TRUE)
 }
 
 
@@ -23,7 +26,7 @@ RWM <- function(logpi, n_iter, h, x_curr) {
   x_store <- matrix(NA, nrow = d, ncol = n_iter)
 
   for (i in 1:n_iter) {
-    # Generate a candidate move
+    # Propose a candidate move
     x_prop <- x_curr + h * rnorm(1)
     logpi_prop <- logpi(x_prop)
 
@@ -57,7 +60,7 @@ mc <- RWM(
 )
 
 # Plot the chain and output the acceptance rate
-plot(1:n_iter, mc$x_store[1, ], type = "l", xlab = "t", ylab = "X(t)")
+plot(1:2000, mc$x_store[1, ], type = "l", xlab = "t", ylab = "X(t)")
 cat("The acceptance rate is: ", mc$a_rate)
 
 
@@ -65,7 +68,7 @@ cat("The acceptance rate is: ", mc$a_rate)
 start <- 0.01 # Starting value for the smallest step size
 multiplier <- 2.5 # Multiplier to increase the step size
 n <- 8 # Number of step sizes
-step_size_grid <- signif(start * multiplier^(0:(n - 1)), digits=2)
+step_size_grid <- signif(start * multiplier^(0:(n - 1)), digits = 2)
 
 n_dim <- 2 # Dimension of the target distribution
 n_iter <- 2000
@@ -89,19 +92,102 @@ for (i in 1:length(step_size_grid)) {
 }
 
 # Plot the acceptance rates against step sizes on a log scale
-plot(step_size_grid, mc_a_rates, log = "x", xaxt = 'n', 
-     xlab = "Step size", ylab = "Acceptance rate", pch=20)
+plot(step_size_grid, mc_a_rates,
+  log = "x", xaxt = "n",
+  xlab = "Step size", ylab = "Acceptance rate", pch = 20
+)
 axis(1, at = step_size_grid)
 
-matplot(1:n_iter, t(mc_samples[, 1, ]), type = "l", 
-        xlab = "t", ylab = expression(X[1](t)), 
-        col = 1:n, lty = 1, ylim = range(mc_samples[, 1, ]))
-legend("bottom", legend = step_size_grid, ncol = ceiling(n/2), 
-       col = 1:n, lty = 1, lwd = 2, cex = 0.7, bty = "n")
+matplot(1:n_iter, t(mc_samples[, 1, ]), ylim = range(mc_samples), type = "l", 
+  xlab = "t", ylab = expression(X[1](t)),
+  col = 1:n, lty = 1
+)
+legend("bottom",
+  legend = step_size_grid, ncol = ceiling(n / 2),
+  col = 1:n, lty = 1, lwd = 2, cex = 0.7, bty = "n"
+)
 
 
 # 10-dimensional Gaussian target distribution
 n_iter <- 2000
 step_size <- 5
 mc_10d <- RWM(logpi = logpi_gauss, n_iter = n_iter, h = step_size, x_curr = rep(0, 10))
-cat('The acceptance rate is', mc_10d$a_rate)
+cat("The acceptance rate is", mc_10d$a_rate)
+
+
+
+### UNDERSTANDING TAIL BEHAVIOUR
+library(VGAM)
+
+
+# Function to calculate the logarithm of the Laplace pdf at `x`
+logpi_laplace <- function(x, location = 0, scale = 1) {
+  dlaplace(x, location = location, scale = scale, log = TRUE)
+}
+
+
+# Function to calculate the logarithm of the Cauchy pdf at `x`
+logpi_cauchy <- function(x, location = 0, scale = 1) {
+  dcauchy(x, location = location, scale = scale)
+}
+
+
+# Warm start
+initial <- 0
+n_iter <- 500
+
+mc_g <- RWM(logpi = logpi_gauss, n_iter = n_iter, h = 2.5, x_curr = initial)
+mc_l <- RWM(logpi = logpi_laplace, n_iter = n_iter, h = 2.5, x_curr = initial)
+mc_c <- RWM(logpi = logpi_cauchy, n_iter = n_iter, h = 4, x_curr = initial)
+cat(
+  "Acceptance rate for:\n\t- Gaussian target distribution:", mc_g$a_rate,
+  "\n\t- Laplce target distribution", mc_l$a_rate,
+  "\n\t- Cauchy target distribution", mc_c$a_rate
+)
+# The Cauchy distribution has much heavier tails than the normal distribution.
+# So a distant points from the current state may still have relatively high density,
+# resulting in a high probability of accepting the proposed move.
+
+limits <- range(mc_g$x_store, mc_l$x_store, mc_c$x_store)
+
+plot(1:n_iter, mc_g$x_store, type = "l", xlab = "t", ylab = "X(t)", ylim = limits)
+lines(1:n_iter, mc_l$x_store, type = "l", col = "blue")
+lines(1:n_iter, mc_c$x_store, type = "l", col = "purple")
+legend("bottom",
+  legend = c("Gaussian", "Laplace", "Cauchy"),
+  col = c("black", "blue", "purple"), horiz = TRUE, lty = 1, lwd = 2, cex = 0.7, bty = "n"
+)
+
+
+# Cold start
+initial <- 100
+
+mc_g_cold <- RWM(logpi = logpi_gauss, n_iter = n_iter, h = 2.5, x_curr = initial)
+mc_l_cold <- RWM(logpi = logpi_laplace, n_iter = n_iter, h = 2.5, x_curr = initial)
+mc_c_cold <- RWM(logpi = logpi_cauchy, n_iter = n_iter, h = 4, x_curr = initial)
+
+mc_warm_cold_samples <- rbind(
+  mc_g$x_store,
+  mc_g_cold$x_store,
+  mc_l$x_store,
+  mc_l_cold$x_store,
+  mc_c$x_store,
+  mc_c_cold$x_store
+)
+
+limits <- range(mc_warm_cold_samples)
+limits[1] <- limits[1] - 50
+matplot(1:n_iter, t(mc_warm_cold_samples), ylim = limits,
+        type = "l", xlab = "t", ylab = expression(X[1](t)), 
+        col = brewer.pal(n = 6, name='Paired'), lty = 1)
+legend("bottom", legend = c('Gaussian (warm start)', 'Gaussian (cold start)', 
+                 'Laplace (warm start)', 'Laplace (cold start)',
+                 'Cauchy (warm start)', 'Cauchy (cold start)'), 
+       ncol = 3, col = brewer.pal(n = 6, name='Paired'), lty = 1, lwd = 2, cex = 0.7, bty = "n"
+)
+
+# The Gaussian and Laplace distribution is more robust to a cold start. This is because
+# even if the sampler starts far from the mean, it will more likely to accept proposals
+# that are closer to the center of the distribution due to higher probability density.
+# Proposals of large jumps in the extreme are unlikely sice the probability density
+# decreases rapidly in the tails.
