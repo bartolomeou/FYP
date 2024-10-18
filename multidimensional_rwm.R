@@ -6,7 +6,7 @@ set.seed(759)
 ### BUILDING A MULTI-DIMENSIONAL RWM ALGORITHM
 # Function to calculate the logarithm of the Gaussian pdf at `x`
 logpi_gauss <- function(x, location = 0, scale = 1) {
-  dnorm(x, mean = location, sd = scale, log = TRUE)
+  sum(dnorm(x, mean = location, sd = scale, log = TRUE))
 }
 
 
@@ -27,7 +27,7 @@ RWM <- function(logpi, n_iter, h, x_curr, ...) {
 
   for (i in 1:n_iter) {
     # Propose a candidate move
-    x_prop <- x_curr + h * rnorm(1)
+    x_prop <- x_curr + h * rnorm(d)
     logpi_prop <- logpi(x_prop, ...)
 
     # Calculate the difference in the log-probabilities of the proposed and
@@ -38,7 +38,7 @@ RWM <- function(logpi, n_iter, h, x_curr, ...) {
     u <- runif(1)
 
     # Acceptance criterion (log-space comparison for numerical stability)
-    if (all(log(u) < loga)) {
+    if (log(u) < loga) {
       # If accepted, update the current state and log-probability
       x_curr <- x_prop
       logpi_curr <- logpi_prop
@@ -111,7 +111,7 @@ legend("bottom",
 
 # 10-dimensional Gaussian target distribution
 n_iter <- 2000
-step_size <- 5
+step_size <- 0.8
 mc_10d <- RWM(logpi = logpi_gauss, n_iter = n_iter, h = step_size, x_curr = rep(0, 10))
 cat("The acceptance rate is", mc_10d$a_rate)
 
@@ -123,13 +123,13 @@ library(VGAM)
 
 # Function to calculate the logarithm of the Laplace pdf at `x`
 logpi_laplace <- function(x, location = 0, scale = 1) {
-  dlaplace(x, location = location, scale = scale, log = TRUE)
+  sum(dlaplace(x, location = location, scale = scale, log = TRUE))
 }
 
 
 # Function to calculate the logarithm of the Cauchy pdf at `x`
 logpi_cauchy <- function(x, location = 0, scale = 1) {
-  dcauchy(x, location = location, scale = scale, log = TRUE)
+  sum(dcauchy(x, location = location, scale = scale, log = TRUE))
 }
 
 
@@ -142,9 +142,9 @@ mc_l <- RWM(logpi = logpi_laplace, n_iter = n_iter, h = 2.5, x_curr = initial)
 mc_c <- RWM(logpi = logpi_cauchy, n_iter = n_iter, h = 5, x_curr = initial)
 
 cat(
-  "Acceptance rate for:\n\t- Gaussian target distribution:", mc_g$a_rate,
-  "\n\t- Laplce target distribution", mc_l$a_rate,
-  "\n\t- Cauchy target distribution", mc_c$a_rate
+  "Acceptance rate for:\n\tGaussian target distribution:", mc_g$a_rate,
+  "\n\tLaplace target distribution", mc_l$a_rate,
+  "\n\tCauchy target distribution", mc_c$a_rate
 )
 # The Cauchy distribution has much heavier tails than the normal distribution.
 # So a distant points from the current state may still have relatively high density,
@@ -204,12 +204,13 @@ legend("bottom",
 ### HETEROGENEOUS TARGETS
 library(mvtnorm)
 
-
+# Function to calculate the logarithm of the multivariate Gaussian pdf at `x`
 logpi_het <- function(x, location, scale) {
-  dmvnorm(x, mean = location, sigma = scale, log = TRUE)
+  sum(dmvnorm(x, mean = location, sigma = scale, log = TRUE))
 }
 
 
+# Bi-variate Gaussian distribution with different marginal variances
 n_iter <- 5000
 initial <- 0
 
@@ -224,16 +225,18 @@ plot(mc_h$x_store[1, ], type = "l", xlab = "t", ylab = expression(X[1](t)))
 plot(mc_h$x_store[2, ], type = "l", xlab = "t", ylab = expression(X[2](t)))
 
 
+# Bi-variate Gaussian distribution with different marginal variances with
+# dependence between components
 n_iter <- 1000
 
 mc_corr0.1 <- RWM(
-  logpi = logpi_het, n_iter = n_iter, h = 3.8, x_curr = rep(initial, 2),
+  logpi = logpi_het, n_iter = n_iter, h = 2.5, x_curr = rep(initial, 2),
   location = rep(0, 2), scale = matrix(c(1, 0.1, 0.1, 1), ncol = 2)
 )
 mc_corr0.1$a_rate
 
 mc_corr0.9 <- RWM(
-  logpi = logpi_het, n_iter = n_iter, h = 5, x_curr = rep(initial, 2),
+  logpi = logpi_het, n_iter = n_iter, h = 1.3, x_curr = rep(initial, 2),
   location = rep(0, 2), scale = matrix(c(1, 0.9, 0.9, 1), ncol = 2)
 )
 mc_corr0.9$a_rate
