@@ -3,6 +3,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from statsmodels.graphics.tsaplots import acf
 
+import wesanderson as wes
+
+sns.set_palette(sns.color_palette(wes.film_palette('Darjeeling Limited')))
+
 
 def traceplot(samples, w=6, h=4, n_col=2, overlay=True):
     # samples: (#components, #iterations)
