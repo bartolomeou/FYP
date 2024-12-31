@@ -1,24 +1,41 @@
 import numpy as np
+import pandas as pd
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 from statsmodels.graphics.tsaplots import acf
 
 import wesanderson as wes
 
-sns.set_palette(sns.color_palette(wes.film_palette('Darjeeling Limited')))
+
+cmap_sns = wes.film_palette('Darjeeling Limited')
+sns.set_palette(sns.color_palette(cmap_sns))
+
+def project_to_psd(A):
+    '''
+    Project a matrix to the positive semidefinite cone.
+    '''
+    eigenvalues, eigenvectors = np.linalg.eigh(A)
+
+    # Set negative eigenvalues to 1e-10 for numerical stability
+    eigenvalues = np.maximum(eigenvalues, 1e-10)
+
+    # Reconstruct the matrix
+    A_psd = eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
+
+    return A_psd
 
 
-def traceplot(samples, w=6, h=4, n_col=2, overlay=True):
-    # samples: (#components, #iterations)
-    
-    n_component = samples.shape[0]
-    n_iter = samples.shape[1]
+def traceplot(X, w=6, h=4, n_col=2, overlay=True):
+    # X: (#components, #iterations)
+    n_dim = X.shape[0]
+    n_iter = X.shape[1]
 
     if overlay:
         fig, ax = plt.subplots(figsize=(6,4))
         
-        for i in range(n_component):
-            sns.lineplot(x=range(1, n_iter+1), y=samples[i, :], label=rf'$X_{i+1}$', linewidth=0.5, legend=False)
+        for i in range(n_dim):
+            sns.lineplot(x=range(1, n_iter+1), y=X[i, :], label=rf'$X_{i+1}$', linewidth=0.5, legend=False)
 
         # Set labels
         ax.set_xlabel('t')
@@ -34,36 +51,38 @@ def traceplot(samples, w=6, h=4, n_col=2, overlay=True):
         
         plt.show()
     else:
-        n_row = np.ceil(n_component / n_col).astype(int)
+        n_row = np.ceil(n_dim / n_col).astype(int)
 
         fig, axes = plt.subplots(nrows=n_row, ncols=n_col, figsize=(w*n_col, h*n_row))
 
-        for i in range(n_component):
+        for i in range(n_dim):
             ax = axes.flat[i]
             
-            sns.lineplot(x=range(1, n_iter+1), y=samples[i, :], ax=ax, linewidth=0.5)
+            sns.lineplot(x=range(1, n_iter+1), y=X[i, :], ax=ax, linewidth=0.5)
             
             # Set labels
             ax.set_xlabel('t')
             ax.set_ylabel(fr'$X_{i+1}(t)$')
 
         # Delete any unused axes (if there are fewer features than subplot slots)
-        for i in range(n_component, len(axes.flat)):
+        for i in range(n_dim, len(axes.flat)):
             fig.delaxes(axes.flat[i])
 
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.show()
 
 
-def acfplot(samples, lags=50, w=6, h=4, n_col=2, overlay=True):
-    # samples: (#components, #iterations)
-    n_component = samples.shape[0]
+def acfplot(X, lags=50, w=6, h=4, n_col=2, overlay=True):
+    # X: (#components, #iterations)
+    n_dim = X.shape[0]
+
+    lags = min(lags, X.shape[1])
 
     if overlay:
         fig, ax = plt.subplots(figsize=(6,4))
         
-        for i in range(n_component):
-            acf_values = acf(samples[i, :], nlags=lags, adjusted=True)
+        for i in range(n_dim):
+            acf_values = acf(X[i, :], nlags=lags, adjusted=True)
             sns.scatterplot(x=range(0, lags+1), y=acf_values, label=rf'$X_{i+1}$', size=0.5, legend=False)
 
         # Set labels
@@ -80,14 +99,14 @@ def acfplot(samples, lags=50, w=6, h=4, n_col=2, overlay=True):
         
         plt.show()
     else:
-        n_row = np.ceil(n_component / n_col).astype(int)
+        n_row = np.ceil(n_dim / n_col).astype(int)
 
         fig, axes = plt.subplots(nrows=n_row, ncols=n_col, figsize=(w*n_col, h*n_row))
 
-        for i in range(n_component):
+        for i in range(n_dim):
             ax = axes.flat[i]
             
-            acf_values = acf(samples[i, :], nlags=lags, adjusted=True)
+            acf_values = acf(X[i, :], nlags=lags, adjusted=True)
 
             sns.scatterplot(x=range(0, lags+1), y=acf_values, ax=ax, size=0.5, legend=False)
             
@@ -96,8 +115,40 @@ def acfplot(samples, lags=50, w=6, h=4, n_col=2, overlay=True):
             ax.set_ylabel(f'$\\text{{Corr}}(X_{{{i+1}}}(t), X_{{{i+1}}}(t+k))$')
 
         # Delete any unused axes (if there are fewer features than subplot slots)
-        for i in range(n_component, len(axes.flat)):
+        for i in range(n_dim, len(axes.flat)):
             fig.delaxes(axes.flat[i])
 
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         plt.show()
+
+
+def pairplot(X, n1, n2, sampler_names=None):
+    column_labels = ['X_{1}']
+
+    for j in range(1, n2+1):
+        for i in range(2, n1+1):
+            column_labels.append(f'X_{{{j},{i}}}')
+
+    if isinstance(X, list):
+        combined_df = pd.DataFrame()
+
+        if sampler_names is None:
+            sampler_names = [str(i) for i in range(1, len(X)+1)]
+
+        for s in range(len(X)):
+            df = pd.DataFrame(data=X[s].T, columns=column_labels)
+            df['Sampler'] = sampler_names[s]
+            combined_df = pd.concat([combined_df, df], ignore_index=True)
+
+        grid = sns.pairplot(combined_df, hue='Sampler', diag_kind='kde', plot_kws={'s': 10, 'alpha': 0.2})
+        
+        # Make legend markers fully opaque
+        for line in grid.legend.get_lines(): 
+            line.set(alpha=1.0)
+            line.set(ms=5)
+
+        plt.show()
+    else:
+        df = pd.DataFrame(data=X.T, columns=column_labels)
+    
+        sns.pairplot(df, diag_kind='kde', plot_kws={'s': 10, 'alpha': 0.2})
