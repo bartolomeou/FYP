@@ -8,8 +8,8 @@ from statsmodels.graphics.tsaplots import acf
 import wesanderson as wes
 
 
-cmap_sns = wes.film_palette('Darjeeling Limited')
-sns.set_palette(sns.color_palette(cmap_sns))
+sns.set_palette(sns.color_palette(wes.film_palette('The Life Aquatic with Steve Zissou')))
+
 
 def project_to_psd(A):
     '''
@@ -32,6 +32,8 @@ def traceplot(X, w=6, h=4, n_col=2, overlay=True):
     n_iter = X.shape[1]
 
     if overlay:
+        sns.set_palette(sns.color_palette(wes.film_palette('Darjeeling Limited')))
+
         fig, ax = plt.subplots(figsize=(6,4))
         
         for i in range(n_dim):
@@ -51,6 +53,8 @@ def traceplot(X, w=6, h=4, n_col=2, overlay=True):
         
         plt.show()
     else:
+        sns.set_palette(sns.color_palette(wes.film_palette('The Life Aquatic with Steve Zissou')))
+
         n_row = np.ceil(n_dim / n_col).astype(int)
 
         fig, axes = plt.subplots(nrows=n_row, ncols=n_col, figsize=(w*n_col, h*n_row))
@@ -79,6 +83,8 @@ def acfplot(X, lags=50, w=6, h=4, n_col=2, overlay=True):
     lags = min(lags, X.shape[1])
 
     if overlay:
+        sns.set_palette(sns.color_palette(wes.film_palette('Darjeeling Limited')))
+
         fig, ax = plt.subplots(figsize=(6,4))
         
         for i in range(n_dim):
@@ -99,6 +105,8 @@ def acfplot(X, lags=50, w=6, h=4, n_col=2, overlay=True):
         
         plt.show()
     else:
+        sns.set_palette(sns.color_palette(wes.film_palette('The Life Aquatic with Steve Zissou')))
+
         n_row = np.ceil(n_dim / n_col).astype(int)
 
         fig, axes = plt.subplots(nrows=n_row, ncols=n_col, figsize=(w*n_col, h*n_row))
@@ -123,6 +131,8 @@ def acfplot(X, lags=50, w=6, h=4, n_col=2, overlay=True):
 
 
 def pairplot(X, n1, n2, sampler_names=None):
+    sns.set_palette(sns.color_palette(wes.film_palette('The Life Aquatic with Steve Zissou')))
+
     column_labels = ['X_{1}']
 
     for j in range(1, n2+1):
@@ -140,7 +150,7 @@ def pairplot(X, n1, n2, sampler_names=None):
             df['Sampler'] = sampler_names[s]
             combined_df = pd.concat([combined_df, df], ignore_index=True)
 
-        grid = sns.pairplot(combined_df, hue='Sampler', diag_kind='kde', plot_kws={'s': 10, 'alpha': 0.2})
+        grid = sns.pairplot(combined_df, hue='Sampler', diag_kind='kde', plot_kws={'s': 5, 'alpha': 0.2})
         
         # Make legend markers fully opaque
         for line in grid.legend.get_lines(): 
