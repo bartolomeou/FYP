@@ -131,8 +131,6 @@ def acfplot(X, lags=50, w=6, h=4, n_col=2, overlay=True):
 
 
 def pairplot(X, n1, n2, sampler_names=None):
-    sns.set_palette(sns.color_palette(wes.film_palette('The Life Aquatic with Steve Zissou')))
-
     column_labels = ['X_{1}']
 
     for j in range(1, n2+1):
@@ -140,6 +138,8 @@ def pairplot(X, n1, n2, sampler_names=None):
             column_labels.append(f'X_{{{j},{i}}}')
 
     if isinstance(X, list):
+        sns.set_palette(sns.color_palette(wes.film_palette('Darjeeling Limited')))
+        
         combined_df = pd.DataFrame()
 
         if sampler_names is None:
@@ -159,6 +159,8 @@ def pairplot(X, n1, n2, sampler_names=None):
 
         plt.show()
     else:
+        sns.set_palette(sns.color_palette(wes.film_palette('The Life Aquatic with Steve Zissou')))
+
         df = pd.DataFrame(data=X.T, columns=column_labels)
     
         sns.pairplot(df, diag_kind='kde', plot_kws={'s': 10, 'alpha': 0.2})
