@@ -93,7 +93,7 @@ def acfplot(X, lags=50, w=6, h=4, n_col=2, overlay=True):
 
         # Set labels
         ax.set_xlabel('k')
-        ax.set_ylabel(r'$\text{Corr}(X_i(t), X_i(t+k))$')
+        ax.set_ylabel(r'$\mathrm{Corr}(X_{i}(t),\,X_{i}(t+k))$')
 
         # Create figure-level legend outside the plot
         fig.legend(loc='upper left', bbox_to_anchor=(0.9, 0.9), frameon=False)
