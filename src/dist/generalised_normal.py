@@ -10,15 +10,15 @@ class GeneralNormal():
     def logpi(self, x):
         return - (np.abs(x - self.mu) / self.alpha)**self.beta
 
-    def first_logpi(self, x):
+    def d1_logpi(self, x):
         diff = x - self.mu
         return - (self.beta / self.alpha**self.beta) * np.abs(diff)**(self.beta-1) * np.sign(diff)
 
-    def second_logpi(self, x):
+    def d2_logpi(self, x):
         diff = x - self.mu
         return - ((self.beta * (self.beta-1)) / self.alpha**self.beta) * np.abs(diff)**(self.beta-2)
 
-    def third_logpi(self, x):
+    def d3_logpi(self, x):
         diff = x - self.mu
         return - ((self.beta * (self.beta-1) * (self.beta-2)) / self.alpha**self.beta) * np.abs(diff)**(self.beta-3) * np.sign(diff)
     
@@ -33,15 +33,15 @@ class SmoothedGeneralNormal():
     def logpi(self, x):
         return - (np.sqrt(self.epsilon* + (x - self.mu)**2) / self.alpha)**self.beta
 
-    def first_logpi(self, x):
+    def d1_logpi(self, x):
         diff = x - self.mu
         return - (self.beta / self.alpha**self.beta) * diff * (self.epsilon + diff**2)**((self.beta-2)/2)
 
-    def second_logpi(self, x):
+    def d2_logpi(self, x):
         diff = x - self.mu
         return - (self.beta / self.alpha**self.beta) * (self.epsilon + diff**2)**((self.beta-4)/2) * ((self.beta-1) * diff**2 + self.epsilon)
 
-    def third_logpi(self, x):
+    def d3_logpi(self, x):
         diff = x - self.mu
         return - ((self.beta * (self.beta-2)) / self.alpha**self.beta) * diff * (self.epsilon + diff**2)**((self.beta-6)/2) * ((self.beta-1) * diff**2 + 3*self.epsilon)
     

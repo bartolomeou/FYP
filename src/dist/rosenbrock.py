@@ -32,46 +32,46 @@ class Rosenbrock():
         return (- self.a * (x[0] - self.mu)**2) - (self.b * np.sum((x[1:] - parents[1:]**2)**2))
 
 
-    def partial_logpi(self, x):
-        partial_logpi = np.zeros_like(x)
+    def d1_logpi(self, x):
+        d1_logpi = np.zeros_like(x)
 
         parents = self._get_parents(x)
         d = x - parents**2
 
         # X_{1}
-        partial_logpi[0] = (- 2 * self.a * d[0]) + (4 * self.b * x[0] * np.sum(d[1::self.n1-1]))
+        d1_logpi[0] = (- 2 * self.a * d[0]) + (4 * self.b * x[0] * np.sum(d[1::self.n1-1]))
 
         # X_{j, i} for 2 <= i <= n1
-        partial_logpi[1:] = - 2 * self.b * d[1:]
+        d1_logpi[1:] = - 2 * self.b * d[1:]
 
         # X_{j, i} for 2 <= 1 < n1
         for j in range(self.n2):
             start = (self.n1 - 1) * j + 1
             stop = (self.n1 - 1) * (j + 1)
-            partial_logpi[start:stop] += 4 * self.b * d[start+1:stop+1] * x[start:stop]
+            d1_logpi[start:stop] += 4 * self.b * d[start+1:stop+1] * x[start:stop]
         
-        return partial_logpi
+        return d1_logpi
 
 
-    def hessian_logpi(self, x):
-        hessian_logpi = np.zeros((x.shape[0], x.shape[0]))
+    def d2_logpi(self, x):
+        d2_logpi = np.zeros((x.shape[0], x.shape[0]))
 
         parents = self._get_parents(x)
         d = x - (3 * parents**2)
 
         # 1. Diagonal entries
         # X_{1}
-        hessian_logpi[0, 0] = (- 2 * self.a) + (4 * self.b * np.sum(d[1::self.n1-1]))
+        d2_logpi[0, 0] = (- 2 * self.a) + (4 * self.b * np.sum(d[1::self.n1-1]))
 
         # X_{j, i} 2 <= i <= n1
-        diag_idx = np.diag_indices_from(hessian_logpi)
-        hessian_logpi[diag_idx[0][1:], diag_idx[1][1:]] = - 2 * self.b
+        diag_idx = np.diag_indices_from(d2_logpi)
+        d2_logpi[diag_idx[0][1:], diag_idx[1][1:]] = - 2 * self.b
 
         # X_{j, i} 2 <= i < n1
         for j in range (self.n2):
             start = (self.n1 - 1) * j + 1
             stop = (self.n1 - 1) * (j + 1)
-            hessian_logpi[diag_idx[0][start:stop], diag_idx[1][start:stop]] += 4 * self.b * d[start+1:stop+1] 
+            d2_logpi[diag_idx[0][start:stop], diag_idx[1][start:stop]] += 4 * self.b * d[start+1:stop+1] 
         
         # 2. Off-diagonal entries
         for j in range(self.n2):
@@ -79,13 +79,13 @@ class Rosenbrock():
                 idx = (self.n1-1) * j + i
                 
                 if i == 1:
-                    hessian_logpi[idx, 0] = 4 * self.b * x[0]
-                    hessian_logpi[0, idx] = hessian_logpi[idx, 0]
+                    d2_logpi[idx, 0] = 4 * self.b * x[0]
+                    d2_logpi[0, idx] = d2_logpi[idx, 0]
                 else:
-                    hessian_logpi[idx, idx-1] = 4 * self.b * x[idx-1]
-                    hessian_logpi[idx-1, idx] = hessian_logpi[idx, idx-1]
+                    d2_logpi[idx, idx-1] = 4 * self.b * x[idx-1]
+                    d2_logpi[idx-1, idx] = d2_logpi[idx, idx-1]
         
-        return hessian_logpi
+        return d2_logpi
     
 
     def sample(self, size):

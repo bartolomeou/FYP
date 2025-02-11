@@ -3,17 +3,17 @@ from scipy.stats import multivariate_normal
 from src.utils.psd import project_to_psd
 
 
-def SMMALA_proposal(x, partial_logpi_x, A_x, step_size, method):
+def SMMALA_proposal(x, grad_logpi_x, A_x, step_size, method):
     z = step_size * np.random.normal(size=x.shape[0]) 
 
     L_x = np.linalg.cholesky(project_to_psd(A_x, method))
 
-    return x + (1/2) * (step_size**2) * A_x @ partial_logpi_x + L_x @ z
+    return x + (1/2) * (step_size**2) * A_x @ grad_logpi_x + L_x @ z
 
 
-def SMMALA_logq_ratio(x, y, partial_logpi_x, partial_logpi_y, A_x, A_y, step_size, method):
-    mean_xy = x + (1/2) * (step_size**2) * A_x @ partial_logpi_x
-    mean_yx = y + (1/2) * (step_size**2) * A_y @ partial_logpi_y
+def SMMALA_logq_ratio(x, y, grad_logpi_x, grad_logpi_y, A_x, A_y, step_size, method):
+    mean_xy = x + (1/2) * (step_size**2) * A_x @ grad_logpi_x
+    mean_yx = y + (1/2) * (step_size**2) * A_y @ grad_logpi_y
 
     cov_xy = (step_size**2) * A_x
     cov_yx = (step_size**2) * A_y
@@ -27,8 +27,8 @@ def SMMALA_logq_ratio(x, y, partial_logpi_x, partial_logpi_y, A_x, A_y, step_siz
 def SMMALA(target, n_iter, x_init, step_size=1, method='clip'):
     x = np.asarray(x_init)
     logpi_x = target.logpi(x)    
-    partial_logpi_x = target.partial_logpi(x)
-    A_x = np.linalg.inv(-target.hessian_logpi(x))
+    grad_logpi_x = target.d1_logpi(x)
+    A_x = np.linalg.inv(-target.d2_logpi(x))
 
     # (#components, #iterations)
     X = np.empty((x.shape[0], n_iter))
@@ -37,18 +37,18 @@ def SMMALA(target, n_iter, x_init, step_size=1, method='clip'):
 
     for i in range(n_iter):
         # Proposal state
-        y = SMMALA_proposal(x, partial_logpi_x, A_x, step_size, method)
+        y = SMMALA_proposal(x, grad_logpi_x, A_x, step_size, method)
         logpi_y = target.logpi(y)
-        partial_logpi_y = target.partial_logpi(y)
-        A_y = np.linalg.inv(-target.hessian_logpi(y))
+        grad_logpi_y = target.d1_logpi(y)
+        A_y = np.linalg.inv(-target.d2_logpi(y))
 
-        log_acceptance = logpi_y - logpi_x + SMMALA_logq_ratio(x, y, partial_logpi_x, partial_logpi_y, A_x, A_y, step_size, method)
+        log_acceptance = logpi_y - logpi_x + SMMALA_logq_ratio(x, y, grad_logpi_x, grad_logpi_y, A_x, A_y, step_size, method)
 
         # Acceptance criterion
         if np.log(np.random.uniform(size=1)) < log_acceptance:
             x = y
             logpi_x = logpi_y
-            partial_logpi_x = partial_logpi_y
+            grad_logpi_x = grad_logpi_y
             A_x = A_y
 
             accepted += 1
