@@ -2,7 +2,9 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 from scipy.stats import multivariate_normal
+from scipy.special import logsumexp
 
+from src.adapter import adapter
 from src.utils.psd import project_to_psd
 
 rng = np.random.default_rng()
@@ -36,14 +38,27 @@ class MetropolisHastingsMCMC(ABC):
         self.x = self.y
         self.logpi_x = self.logpi_y
 
+    def step(self):
+        self.y = self.propose()
+        self.logpi_y = self.target.logpi(self.y)
+
+        log_accept_prob = self.logpi_y - self.logpi_x + self.log_q_ratio()
+
+        if np.log(rng.uniform()) < log_accept_prob:
+            self.update()
+
+        return np.exp(min(0, log_accept_prob))
+
     def sample(
         self,
         target,
         initial_state,
         n_main_iter,
-        n_burnin_iter=0,
-        adapter=None,
         step_size=1,
+        n_burnin_iter=0,
+        adapter_method="default",
+        lr=0.1,
+        batch_size=30,
     ):
         self.target = target
         self.h = step_size
@@ -54,42 +69,37 @@ class MetropolisHastingsMCMC(ABC):
         self.n_var = self.x.shape[0]
 
         X_burnin = np.empty((self.n_var, n_burnin_iter))
-        accept_prob = []
+        accept_prob_burnin = []
 
         for i in range(n_burnin_iter):
-            self.y = self.propose()
-            self.logpi_y = target.logpi(self.y)
+            accept_prob = self.step()
+            accept_prob_burnin.append(accept_prob)
 
-            log_accept_rate = self.logpi_y - self.logpi_x + self.log_q_ratio()
-
-            if np.log(rng.uniform()) < log_accept_rate:
-                self.update()
+            self.h = adapter(
+                self.h,
+                accept_prob_burnin,
+                self.target_accept_prob,
+                adapter_method,
+                lr,
+                batch_size,
+            )
 
             X_burnin[:, i] = self.x
 
-            accept_prob.append(min(1, np.exp(log_accept_rate)))
-            if adapter is not None:
-                self.h = adapter(self.h, accept_prob, self.target_accept_prob)
-
         X_main = np.empty((self.n_var, n_main_iter))
-        accept_count = 0
+        accept_prob_main = []
 
         for i in range(n_main_iter):
-            self.y = self.propose()
-            self.logpi_y = target.logpi(self.y)
-
-            log_accept_rate = self.logpi_y - self.logpi_x + self.log_q_ratio()
-
-            if np.log(rng.uniform()) < log_accept_rate:
-                self.update()
-                accept_count += 1
+            accept_prob = self.step()
+            accept_prob_main.append(accept_prob)
 
             X_main[:, i] = self.x
 
         return {
-            "trace_burnin": X_burnin,
             "trace_main": X_main,
-            "accept_rate": accept_count / n_main_iter,
+            "accept_prob_main": accept_prob_main,
+            "trace_burnin": X_burnin,
+            "accept_prob_burnin": accept_prob_burnin,
         }
 
 
@@ -139,8 +149,12 @@ class Barker(MetropolisHastingsMCMC):
 
         z = self.y - self.x
 
-        logq_xy = -np.log1p(np.exp(-z * self.d1_logpi_x))
-        logq_yx = -np.log1p(np.exp(z * self.d1_logpi_y))
+        logq_xy = -logsumexp(
+            np.stack([np.zeros_like(z), -z * self.d1_logpi_x]), axis=0
+        )  # -np.log1p(np.exp(-z * self.d1_logpi_x))
+        logq_yx = -logsumexp(
+            np.stack([np.zeros_like(z), z * self.d1_logpi_y]), axis=0
+        )  # -np.log1p(np.exp(z * self.d1_logpi_y))
 
         return np.sum(logq_yx - logq_xy)
 
@@ -152,7 +166,7 @@ class Barker(MetropolisHastingsMCMC):
 class SMBarker(MetropolisHastingsMCMC):
     def __init__(
         self,
-        target_accept_prob=None,
+        target_accept_prob=0.574,
         var_labels=None,
         noise="normal",
         psd_method="clip",
@@ -198,8 +212,13 @@ class SMBarker(MetropolisHastingsMCMC):
         z_xy = np.linalg.inv(self.L_x) @ (self.x - self.y)
         z_yx = np.linalg.inv(self.L_y) @ (self.y - self.x)
 
-        logq_xy = -np.log1p(np.exp(z_xy @ (self.d1_logpi_x @ self.L_x)))
-        logq_yx = -np.log1p(np.exp(z_yx @ (self.d1_logpi_y @ self.L_y)))
+        # NOTE: Changed @ to *, might explain the weird bimodal behaviour
+        logq_xy = -logsumexp(
+            np.stack([np.zeros_like(z_xy), z_xy * (self.d1_logpi_x @ self.L_x)]), axis=0
+        )  # -np.log1p(np.exp(z_xy * (self.d1_logpi_x @ self.L_x)))
+        logq_yx = logsumexp(
+            np.stack([np.zeros_like(z_yx), z_yx * (self.d1_logpi_y @ self.L_y)]), axis=0
+        )  # -np.log1p(np.exp(z_yx * (self.d1_logpi_y @ self.L_y)))
 
         return np.sum(logq_yx - logq_xy)
 
@@ -210,7 +229,7 @@ class SMBarker(MetropolisHastingsMCMC):
 
 
 class MALA(MetropolisHastingsMCMC):
-    def __init__(self, target_accept_prob=None, var_labels=None):
+    def __init__(self, target_accept_prob=0.574, var_labels=None):
         super().__init__(target_accept_prob, var_labels)
         self.d1_logpi_x = None
         self.d1_logpi_y = None
@@ -244,7 +263,7 @@ class MALA(MetropolisHastingsMCMC):
 
 
 class SMMALA(MetropolisHastingsMCMC):
-    def __init__(self, target_accept_prob=None, var_labels=None, psd_method="abs"):
+    def __init__(self, target_accept_prob=0.574, var_labels=None, psd_method="abs"):
         super().__init__(target_accept_prob, var_labels)
         self.psd_method = psd_method
 
