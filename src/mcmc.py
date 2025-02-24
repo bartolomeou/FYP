@@ -5,19 +5,18 @@ from scipy.stats import multivariate_normal
 from scipy.special import logsumexp
 
 from src.adapter import adapter
-from src.utils.psd import project_to_psd
+from utils.pd import project_to_pd
 
 rng = np.random.default_rng()
 
 
 class MetropolisHastingsMCMC(ABC):
-    def __init__(self, target_accept_prob=None, var_labels=None):
+    def __init__(self, target_accept_prob=None):
         self.target_accept_prob = target_accept_prob
 
         self.h = None
         self.target = None
         self.n_var = None
-        self.var_labels = var_labels
 
         self.x = None
         self.logpi_x = None
@@ -61,12 +60,11 @@ class MetropolisHastingsMCMC(ABC):
         batch_size=30,
     ):
         self.target = target
+        self.n_var = target.n_var
         self.h = step_size
 
         self.x = np.asarray(initial_state)
         self.logpi_x = target.logpi(self.x)
-
-        self.n_var = self.x.shape[0]
 
         X_burnin = np.empty((self.n_var, n_burnin_iter))
         accept_prob_burnin = []
@@ -104,8 +102,8 @@ class MetropolisHastingsMCMC(ABC):
 
 
 class RandomWalk(MetropolisHastingsMCMC):
-    def __init__(self, target_accept_prob=0.234, var_labels=None):
-        super().__init__(target_accept_prob, var_labels)
+    def __init__(self, target_accept_prob=0.234):
+        super().__init__(target_accept_prob)
 
     def propose(self):
         return self.x + self.h * rng.normal(size=self.n_var)
@@ -118,8 +116,8 @@ class RandomWalk(MetropolisHastingsMCMC):
 
 
 class Barker(MetropolisHastingsMCMC):
-    def __init__(self, target_accept_prob=0.574, var_labels=None, noise="normal"):
-        super().__init__(target_accept_prob, var_labels)
+    def __init__(self, target_accept_prob=0.574, noise="normal"):
+        super().__init__(target_accept_prob)
         self.noise = noise
 
         self.d1_logpi_x = None
@@ -167,11 +165,10 @@ class SMBarker(MetropolisHastingsMCMC):
     def __init__(
         self,
         target_accept_prob=0.574,
-        var_labels=None,
         noise="normal",
         psd_method="clip",
     ):
-        super().__init__(target_accept_prob, var_labels)
+        super().__init__(target_accept_prob)
         self.noise = noise
         self.psd_method = psd_method
 
@@ -184,7 +181,7 @@ class SMBarker(MetropolisHastingsMCMC):
     def propose(self):
         if self.d1_logpi_x is None:
             self.d1_logpi_x = self.target.d1_logpi(self.x)
-            A_x = project_to_psd(
+            A_x = project_to_pd(
                 np.linalg.inv(-self.target.d2_logpi(self.x)), method=self.psd_method
             )
             self.L_x = np.linalg.cholesky(A_x)  # Lower-triangular Cholesky factor
@@ -204,7 +201,7 @@ class SMBarker(MetropolisHastingsMCMC):
 
     def log_q_ratio(self):
         self.d1_logpi_y = self.target.d1_logpi(self.y)
-        A_y = project_to_psd(
+        A_y = project_to_pd(
             np.linalg.inv(-self.target.d2_logpi(self.y)), method=self.psd_method
         )
         self.L_y = np.linalg.cholesky(A_y)
@@ -229,8 +226,8 @@ class SMBarker(MetropolisHastingsMCMC):
 
 
 class MALA(MetropolisHastingsMCMC):
-    def __init__(self, target_accept_prob=0.574, var_labels=None):
-        super().__init__(target_accept_prob, var_labels)
+    def __init__(self, target_accept_prob=0.574):
+        super().__init__(target_accept_prob)
         self.d1_logpi_x = None
         self.d1_logpi_y = None
 
@@ -263,8 +260,8 @@ class MALA(MetropolisHastingsMCMC):
 
 
 class SMMALA(MetropolisHastingsMCMC):
-    def __init__(self, target_accept_prob=0.574, var_labels=None, psd_method="abs"):
-        super().__init__(target_accept_prob, var_labels)
+    def __init__(self, target_accept_prob=0.574, psd_method="abs"):
+        super().__init__(target_accept_prob)
         self.psd_method = psd_method
 
         self.d1_logpi_x = None
@@ -280,7 +277,7 @@ class SMMALA(MetropolisHastingsMCMC):
 
         z = rng.normal(loc=0, scale=self.h, size=self.n_var)
 
-        L_x = np.linalg.cholesky(project_to_psd(self.A_x, method=self.psd_method))
+        L_x = np.linalg.cholesky(project_to_pd(self.A_x, method=self.psd_method))
 
         return self.x + (1 / 2) * (self.h**2) * self.A_x @ self.d1_logpi_x + L_x @ z
 
@@ -295,10 +292,10 @@ class SMMALA(MetropolisHastingsMCMC):
         cov_yx = (self.h**2) * self.A_y
 
         log_xy = multivariate_normal.logpdf(
-            self.y, mean=mean_xy, cov=project_to_psd(cov_xy, method=self.psd_method)
+            self.y, mean=mean_xy, cov=project_to_pd(cov_xy, method=self.psd_method)
         )
         log_yx = multivariate_normal.logpdf(
-            self.x, mean=mean_yx, cov=project_to_psd(cov_yx, method=self.psd_method)
+            self.x, mean=mean_yx, cov=project_to_pd(cov_yx, method=self.psd_method)
         )
 
         return log_yx - log_xy

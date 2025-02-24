@@ -1,5 +1,5 @@
 import numpy as np
-from src.utils.psd import project_to_psd
+from utils.pd import project_to_psd
 
 
 def SMBarker_proposal(x, grad_logpi_x, L_x, step_size, noise="normal"):

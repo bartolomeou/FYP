@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.stats import multivariate_normal
-from src.utils.psd import project_to_psd
+from utils.pd import project_to_psd
 
 
 def SMMALA_proposal(x, grad_logpi_x, A_x, step_size, method):

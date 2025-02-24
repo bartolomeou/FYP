@@ -3,8 +3,8 @@ import numpy as np
 
 
 class TargetDistribution(ABC):
-    def __init__(self):
-        pass
+    def __init__(self, n_var):
+        self.n_var = n_var
 
     @abstractmethod
     def logpi(self, x):
@@ -26,9 +26,18 @@ class TargetDistribution(ABC):
     def direct_sample(self, size):
         pass
 
+    def get_var_labels(self):
+        labels = []
+
+        for i in range(self.n_var):
+            labels.append(f"X_{{i}}")
+
+        return labels
+
 
 class GeneralNormal(TargetDistribution):
-    def __init__(self, mu=0, alpha=1, beta=2):
+    def __init__(self, n_var, mu=0, alpha=1, beta=2):
+        super.__init__(n_var)
         self.mu = mu
         self.alpha = alpha
         self.beta = beta
@@ -63,7 +72,8 @@ class GeneralNormal(TargetDistribution):
 
 
 class SmoothedGeneralNormal(TargetDistribution):
-    def __init__(self, mu=0, alpha=1, beta=2, epsilon=1):
+    def __init__(self, n_var, mu=0, alpha=1, beta=2, epsilon=1):
+        super.__init__(n_var)
         self.mu = mu
         self.alpha = alpha
         self.beta = beta
@@ -99,12 +109,13 @@ class SmoothedGeneralNormal(TargetDistribution):
             * ((self.beta - 1) * diff**2 + 3 * self.epsilon)
         )
 
-    def sample(self, size):
+    def direct_sample(self, size):
         raise NotImplementedError
 
 
 class Rosenbrock(TargetDistribution):
-    def __init__(self, n1, n2, mu=1, a=0.05, b=5):
+    def __init__(self, n_var, n1, n2, mu=1, a=0.05, b=5):
+        super.__init__(n_var)
         self.n1 = n1
         self.n2 = n2
         self.mu = mu
@@ -112,7 +123,7 @@ class Rosenbrock(TargetDistribution):
         self.b = b
 
     def _get_parents(self, x):
-        parents = np.zeros_like(x)
+        parents = np.zeros(self.n_var)
 
         # X_{1}
         parents[0] = np.sqrt(self.mu)
@@ -134,7 +145,7 @@ class Rosenbrock(TargetDistribution):
         )
 
     def d1_logpi(self, x):
-        d1_logpi = np.zeros_like(x)
+        d1_logpi = np.zeros(self.n_var)
 
         parents = self._get_parents(x)
         d = x - parents**2
@@ -156,7 +167,7 @@ class Rosenbrock(TargetDistribution):
         return d1_logpi
 
     def d2_logpi(self, x):
-        d2_logpi = np.zeros((x.shape[0], x.shape[0]))
+        d2_logpi = np.zeros((self.n_var, self.n_var))
 
         parents = self._get_parents(x)
         d = x - (3 * parents**2)
@@ -214,3 +225,12 @@ class Rosenbrock(TargetDistribution):
                     X[idx, t] = np.random.normal(x_parent**2, 1 / np.sqrt(2 * self.b))
 
         return X
+
+    def get_var_labels(self):
+        labels = ["X_{1}"]
+
+        for j in range(1, self.n2 + 1):
+            for i in range(2, self.n1 + 1):
+                labels.append(f"X_{{{j},{i}}}")
+
+        return labels

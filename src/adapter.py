@@ -13,7 +13,7 @@ def adapter(h, accept_probs, target_accept_prob, method="none", lr=0.1, batch_si
     return h
 
 
-def stochastic_approximation_adapter(h, last_accept_prob, target_accept_prob, lr=0.6):
+def stochastic_approximation_adapter(h, last_accept_prob, target_accept_prob, lr=0.1):
     h *= np.exp(lr * (last_accept_prob - target_accept_prob))
     return h
 
