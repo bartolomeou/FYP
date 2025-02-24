@@ -4,13 +4,17 @@ from scipy.stats import multivariate_normal
 
 def MALA_proposal(x, grad_logpi_x, step_size):
     z = step_size * np.random.normal(size=x.shape[0])
-    return x + (1/2) * (step_size**2) * grad_logpi_x + z
+    return x + (1 / 2) * (step_size**2) * grad_logpi_x + z
 
 
 def MALA_logq_ratio(x, y, grad_logpi_x, grad_logpi_y, step_size):
-    log_xy = multivariate_normal.logpdf(y, mean=(x + (1/2) * (step_size**2) * grad_logpi_x), cov=(step_size**2))
-    log_yx = multivariate_normal.logpdf(x, mean=(y + (1/2) * (step_size**2) * grad_logpi_y), cov=(step_size**2))
-    
+    log_xy = multivariate_normal.logpdf(
+        y, mean=(x + (1 / 2) * (step_size**2) * grad_logpi_x), cov=(step_size**2)
+    )
+    log_yx = multivariate_normal.logpdf(
+        x, mean=(y + (1 / 2) * (step_size**2) * grad_logpi_y), cov=(step_size**2)
+    )
+
     return log_yx - log_xy
 
 
@@ -30,7 +34,11 @@ def MALA(target, n_iter, x_init, step_size=1):
         logpi_y = target.logpi(y)
         grad_logpi_y = target.d1_logpi(y)
 
-        log_acceptance = logpi_y - logpi_x + MALA_logq_ratio(x, y, grad_logpi_x, grad_logpi_y, step_size)
+        log_acceptance = (
+            logpi_y
+            - logpi_x
+            + MALA_logq_ratio(x, y, grad_logpi_x, grad_logpi_y, step_size)
+        )
 
         # Acceptance criterion
         if np.log(np.random.uniform(size=1)) < log_acceptance:
@@ -41,7 +49,7 @@ def MALA(target, n_iter, x_init, step_size=1):
             accepted += 1
 
         X[:, i] = x
-        
+
     acceptance_rate = accepted / n_iter
 
     return X, acceptance_rate

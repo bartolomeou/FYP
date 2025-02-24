@@ -1,19 +1,4 @@
 import numpy as np
-from .base import MetropolisHastingsMCMC
-
-
-class RandomWalk(MetropolisHastingsMCMC):
-    def __init__(self, target_accept_prob=0.234, var_labels=None):
-        super().__init__(target_accept_prob, var_labels)
-
-    def log_q_ratio(self):
-        return 0
-
-    def propose(self):
-        return self.x + self.h * np.random.normal(size=self.n_var)
-
-    def update(self):
-        super().update()
 
 
 def RWM_proposal(x, step_size):
