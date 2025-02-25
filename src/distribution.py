@@ -36,8 +36,8 @@ class TargetDistribution(ABC):
 
 
 class GeneralNormal(TargetDistribution):
-    def __init__(self, n_var, mu=0, alpha=1, beta=2):
-        super.__init__(n_var)
+    def __init__(self, n_var=1, mu=0, alpha=1, beta=2):
+        super().__init__(n_var)
         self.mu = mu
         self.alpha = alpha
         self.beta = beta
@@ -72,8 +72,8 @@ class GeneralNormal(TargetDistribution):
 
 
 class SmoothedGeneralNormal(TargetDistribution):
-    def __init__(self, n_var, mu=0, alpha=1, beta=2, epsilon=1):
-        super.__init__(n_var)
+    def __init__(self, n_var=1, mu=0, alpha=1, beta=2, epsilon=1):
+        super().__init__(n_var)
         self.mu = mu
         self.alpha = alpha
         self.beta = beta
@@ -115,7 +115,7 @@ class SmoothedGeneralNormal(TargetDistribution):
 
 class Rosenbrock(TargetDistribution):
     def __init__(self, n_var, n1, n2, mu=1, a=0.05, b=5):
-        super.__init__(n_var)
+        super().__init__(n_var)
         self.n1 = n1
         self.n2 = n2
         self.mu = mu
