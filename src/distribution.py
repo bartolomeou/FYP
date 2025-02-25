@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import numpy as np
 
+rng = np.random.default_rng()
+
 
 class TargetDistribution(ABC):
     def __init__(self, n_var):
@@ -123,6 +125,9 @@ class Rosenbrock(TargetDistribution):
         self.b = b
 
     def _get_parents(self, x):
+        if self.n_var == 1:
+            return np.array([np.sqrt(self.mu)])
+
         parents = np.zeros(self.n_var)
 
         # X_{1}
@@ -138,6 +143,9 @@ class Rosenbrock(TargetDistribution):
         return parents
 
     def logpi(self, x):
+        if self.n_var == 1:
+            return -self.a * (x - self.mu) ** 2
+
         parents = self._get_parents(x)
 
         return (-self.a * (x[0] - self.mu) ** 2) - (
@@ -145,6 +153,9 @@ class Rosenbrock(TargetDistribution):
         )
 
     def d1_logpi(self, x):
+        if self.n_var == 1:
+            return -1 * self.a * (x - self.mu)
+
         d1_logpi = np.zeros(self.n_var)
 
         parents = self._get_parents(x)
@@ -167,6 +178,9 @@ class Rosenbrock(TargetDistribution):
         return d1_logpi
 
     def d2_logpi(self, x):
+        if self.n_var == 1:
+            return np.array([-2 * self.a])
+
         d2_logpi = np.zeros((self.n_var, self.n_var))
 
         parents = self._get_parents(x)
@@ -206,12 +220,15 @@ class Rosenbrock(TargetDistribution):
         return super().d3_logpi()
 
     def direct_sample(self, size):
+        if self.n_var == 1:
+            return rng.normal(loc=self.mu, scale=(1 / np.sqrt(2 * self.a)))
+
         n_dim = (self.n1 - 1) * self.n2 + 1
 
         X = np.empty((n_dim, size))
 
         for t in range(size):
-            X[0, t] = np.random.normal(self.mu, 1 / np.sqrt(2 * self.a))
+            X[0, t] = rng.normal(lof=self.mu, scale=(1 / np.sqrt(2 * self.a)))
 
             for j in range(self.n2):
                 for i in range(1, self.n1):
@@ -222,7 +239,7 @@ class Rosenbrock(TargetDistribution):
                     else:
                         x_parent = X[idx - 1, t]
 
-                    X[idx, t] = np.random.normal(x_parent**2, 1 / np.sqrt(2 * self.b))
+                    X[idx, t] = rng.normal(x_parent**2, 1 / np.sqrt(2 * self.b))
 
         return X
 
