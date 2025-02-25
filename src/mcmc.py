@@ -213,7 +213,7 @@ class SMBarker(MetropolisHastingsMCMC):
 
         b = 2 * (rng.uniform(size=self.n_var) < p_xz) - 1
 
-        # NOTE: @ still works in one-dimension case because L_x, b, z are 1-D array
+        # @ still works in one-dimension case because L_x, b, z are 1-D array
         return self.x + self.L_x @ (b * z)
 
     def log_q_ratio(self):
@@ -233,7 +233,7 @@ class SMBarker(MetropolisHastingsMCMC):
             z_xy = np.linalg.inv(self.L_x) @ (self.x - self.y)
             z_yx = np.linalg.inv(self.L_y) @ (self.y - self.x)
 
-        # NOTE: Changed @ to *, might explain the weird bimodal behaviour
+        # Changed @ to *, might explain the weird bimodal behaviour
         logq_xy = -logsumexp(
             [np.zeros_like(z_xy), z_xy * (self.d1_logpi_x @ self.L_x)], axis=0
         )  # -np.log1p(np.exp(z_xy * (self.d1_logpi_x @ self.L_x)))
@@ -303,9 +303,11 @@ class SMMALA(MetropolisHastingsMCMC):
 
         self.d1_logpi_x = None
         self.A_x = None
+        self.L_x = None
 
         self.d1_logpi_y = None
         self.A_y = None
+        self.L_y = None
 
     def initialize(self, initial_state):
         super().initialize(initial_state)
@@ -313,36 +315,50 @@ class SMMALA(MetropolisHastingsMCMC):
 
         if self.n_var == 1:
             self.A_x = 1 / (-self.target.d2_logpi(self.x))
+            self.L_x = np.sqrt(self.A_x)
         else:
             self.A_x = np.linalg.inv(-self.target.d2_logpi(self.x))
+            self.L_x = np.linalg.cholesky(
+                project_to_pd(self.A_x, method=self.psd_method)
+            )
 
     def propose(self):
         z = rng.normal(loc=0, scale=self.h, size=self.n_var)
 
+        if self.L_x is None:  # L_x is always not None for 1d
+            self.L_x = np.linalg.cholesky(
+                project_to_pd(self.A_x, method=self.psd_method)
+            )
+
         if self.n_var == 1:
-            L_x = np.sqrt(self.A_x)
-
-            return self.x + (1 / 2) * (self.h**2) * self.A_x * self.d1_logpi_x + L_x * z
+            return (
+                self.x
+                + (1 / 2) * (self.h**2) * self.A_x * self.d1_logpi_x
+                + self.L_x * z
+            )
         else:
-            L_x = np.linalg.cholesky(project_to_pd(self.A_x, method=self.psd_method))
-
-            return self.x + (1 / 2) * (self.h**2) * self.A_x @ self.d1_logpi_x + L_x @ z
+            return (
+                self.x
+                + (1 / 2) * (self.h**2) * self.A_x @ self.d1_logpi_x
+                + self.L_x @ z
+            )
 
     def log_q_ratio(self):
         self.d1_logpi_y = self.target.d1_logpi(self.y)
 
         if self.n_var == 1:
             self.A_y = 1 / (-self.target.d2_logpi(self.y))
+            self.L_y = np.sqrt(self.A_y)
 
             log_xy = norm.logpdf(
                 self.y,
                 loc=(self.x + (1 / 2) * (self.h**2) * self.A_x * self.d1_logpi_x),
-                scale=(self.h * np.sqrt(self.A_x)),
+                scale=(self.h * self.L_x),
             )
             log_yx = norm.logpdf(
                 self.x,
                 loc=(self.y + (1 / 2) * (self.h**2) * self.A_y * self.d1_logpi_y),
-                scale=(self.h * np.sqrt(self.A_y)),
+                scale=(self.h * self.L_y),
             )
         else:
             self.A_y = np.linalg.inv(-self.target.d2_logpi(self.y))
@@ -364,11 +380,80 @@ class SMMALA(MetropolisHastingsMCMC):
         super().update()
         self.d1_logpi_x = self.d1_logpi_y
         self.A_x = self.A_y
+        self.L_x = self.L_y
 
 
 class MMALA(MetropolisHastingsMCMC):
+    # Only for GND
     def __init__(self, target_accept_prob=0.574):
         super().__init__(target_accept_prob)
+        self.d1_logpi_x = None
+        self.A_x = None
+        self.L_x = None
+        self.Gamma_x = None
+
+        self.d1_logpi_y = None
+        self.A_y = None
+        self.L_y = None
+        self.Gamma_y = None
 
     def initialize(self, initial_state):
-        return super().initialize(initial_state)
+        super().initialize(initial_state)
+        self.d1_logpi_x = self.target.d1_logpi(self.x)
+
+        d2_logpi_x = self.target.d2_logpi(self.x)
+        self.A_x = 1 / (-d2_logpi_x)
+        self.L_x = np.sqrt(self.A_x)
+        self.Gamma_x = (
+            -(1 / 2)
+            * (self.A_x**2)
+            * np.sign(d2_logpi_x)
+            * self.target.d3_logpi(self.x)
+        )
+
+    def propose(self):
+        z = rng.normal(loc=0, scale=self.h, size=self.n_var)
+
+        return (
+            self.x
+            + (1 / 2) * (self.h**2) * self.A_x * self.d1_logpi_x
+            + (self.h**2) * self.Gamma_x
+            + self.L_x * z
+        )
+
+    def log_q_ratio(self):
+        self.d1_logpi_y = self.target.d1_logpi(self.y)
+
+        d2_logpi_y = self.target.d2_logpi(self.y)
+        self.A_y = 1 / (-d2_logpi_y)
+        self.L_y = np.sqrt(self.A_y)
+        self.Gamma_y = (
+            -(1 / 2)
+            * (self.A_y**2)
+            * np.sign(d2_logpi_y)
+            * self.target.d3_logpi(self.y)
+        )
+
+        log_xy = norm.logpdf(
+            self.y,
+            loc=self.x
+            + (1 / 2) * (self.h**2) * self.A_x * self.d1_logpi_x
+            + (self.h**2) * self.Gamma_x,
+            scale=self.h * self.L_x,
+        )
+        log_yx = norm.logpdf(
+            self.x,
+            loc=self.y
+            + (1 / 2) * (self.h**2) * self.A_y * self.d1_logpi_y
+            + (self.h**2) * self.Gamma_y,
+            scale=self.h * self.L_y,
+        )
+
+        return log_yx - log_xy
+
+    def update(self):
+        super().update()
+        self.d1_logpi_x = self.d1_logpi_y
+        self.A_x = self.A_y
+        self.L_x = self.L_y
+        self.Gamma_x = self.Gamma_y
