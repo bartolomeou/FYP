@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
+from scipy.stats import gennorm
 
 rng = np.random.default_rng()
 
@@ -70,10 +71,10 @@ class GeneralNormal(TargetDistribution):
         )
 
     def direct_sample(self, size):
-        raise NotImplementedError
+        return gennorm.rvs(beta=self.beta, loc=self.mu, scale=self.alpha, size=size)
 
 
-class SmoothedGeneralNormal(TargetDistribution):
+class SmoothGeneralNormal(TargetDistribution):
     def __init__(self, n_var=1, mu=0, alpha=1, beta=2, epsilon=1):
         super().__init__(n_var)
         self.mu = mu
@@ -112,7 +113,7 @@ class SmoothedGeneralNormal(TargetDistribution):
         )
 
     def direct_sample(self, size):
-        raise NotImplementedError
+        return gennorm.rvs(beta=self.beta, loc=self.mu, scale=self.alpha, size=size)
 
 
 class Rosenbrock(TargetDistribution):
