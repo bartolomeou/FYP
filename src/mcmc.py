@@ -7,8 +7,6 @@ from scipy.special import logsumexp
 from src.adapter import adapter
 from src.utils.pd import project_to_pd
 
-rng = np.random.default_rng()
-
 
 class MetropolisHastingsMCMC(ABC):
     def __init__(self, target_accept_prob=None):
@@ -23,6 +21,8 @@ class MetropolisHastingsMCMC(ABC):
 
         self.y = None
         self.logpi_y = None
+
+        self.rng = None
 
     @abstractmethod
     def initialize(self, initial_state):
@@ -50,7 +50,7 @@ class MetropolisHastingsMCMC(ABC):
 
         log_accept_prob = self.logpi_y - self.logpi_x + self.log_q_ratio()
 
-        if np.log(rng.uniform()) < log_accept_prob:
+        if np.log(self.rng.uniform()) < log_accept_prob:
             self.update()
 
         return np.exp(min(0, log_accept_prob))
@@ -65,7 +65,10 @@ class MetropolisHastingsMCMC(ABC):
         adapter_method="default",
         lr=0.1,
         batch_size=30,
+        seed=2025,
     ):
+        self.rng = np.random.default_rng(seed)
+
         self.target = target
         self.h = step_size
 
@@ -116,7 +119,7 @@ class RandomWalk(MetropolisHastingsMCMC):
         super().initialize(initial_state)
 
     def propose(self):
-        return self.x + self.h * rng.normal(size=self.n_var)
+        return self.x + self.h * self.rng.normal(size=self.n_var)
 
     def log_q_ratio(self):
         return 0
@@ -140,16 +143,16 @@ class Barker(MetropolisHastingsMCMC):
     def propose(self):
         if self.noise == "bimodal":
             # z ~ Normal(mean = sigma, sd = a * sigma) for some constant a
-            z = rng.normal(loc=self.h, scale=0.3 * self.h, size=self.n_var)
+            z = self.rng.normal(loc=self.h, scale=0.3 * self.h, size=self.n_var)
         else:
             # z ~ Normal(mean = 0, sd = sigma)
-            z = rng.normal(loc=0, scale=self.h, size=self.n_var)
+            z = self.rng.normal(loc=0, scale=self.h, size=self.n_var)
 
         # Acceptance probability for each component: 1 / (1 + exp(-grad * z))
         p_xz = 1 / (1 + np.exp(-z * self.d1_logpi_x))
 
         # b is either +1 or -1 depending on a uniform random draw
-        b = 2 * (rng.uniform(size=self.n_var) < p_xz) - 1
+        b = 2 * (self.rng.uniform(size=self.n_var) < p_xz) - 1
 
         return self.x + b * z
 
@@ -204,14 +207,14 @@ class SMBarker(MetropolisHastingsMCMC):
     def propose(self):
         if self.noise == "bimodal":
             # z ~ Normal(mean = sigma, sd = a * sigma) for some constant a
-            z = rng.normal(loc=self.h, scale=0.3 * self.h, size=self.n_var)
+            z = self.rng.normal(loc=self.h, scale=0.3 * self.h, size=self.n_var)
         else:
             # z ~ Normal(mean = 0, sd = sigma)
-            z = rng.normal(loc=0, scale=self.h, size=self.n_var)
+            z = self.rng.normal(loc=0, scale=self.h, size=self.n_var)
 
         p_xz = 1 / (1 + np.exp(-z * (self.d1_logpi_x @ self.L_x)))
 
-        b = 2 * (rng.uniform(size=self.n_var) < p_xz) - 1
+        b = 2 * (self.rng.uniform(size=self.n_var) < p_xz) - 1
 
         # @ still works in one-dimension case because L_x, b, z are 1-D array
         return self.x + self.L_x @ (b * z)
@@ -260,7 +263,7 @@ class MALA(MetropolisHastingsMCMC):
         self.d1_logpi_x = self.target.d1_logpi(self.x)
 
     def propose(self):
-        z = rng.normal(loc=0, scale=self.h, size=self.n_var)
+        z = self.rng.normal(loc=0, scale=self.h, size=self.n_var)
         return self.x + (1 / 2) * (self.h**2) * self.d1_logpi_x + z
 
     def log_q_ratio(self):
@@ -323,7 +326,7 @@ class SMMALA(MetropolisHastingsMCMC):
             )
 
     def propose(self):
-        z = rng.normal(loc=0, scale=self.h, size=self.n_var)
+        z = self.rng.normal(loc=0, scale=self.h, size=self.n_var)
 
         if self.L_x is None:  # L_x is always not None for 1d
             self.L_x = np.linalg.cholesky(
@@ -412,7 +415,7 @@ class MMALA(MetropolisHastingsMCMC):
         )
 
     def propose(self):
-        z = rng.normal(loc=0, scale=self.h, size=self.n_var)
+        z = self.rng.normal(loc=0, scale=self.h, size=self.n_var)
 
         return (
             self.x

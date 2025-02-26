@@ -2,8 +2,6 @@ from abc import ABC, abstractmethod
 import numpy as np
 from scipy.stats import gennorm
 
-rng = np.random.default_rng()
-
 
 class TargetDistribution(ABC):
     def __init__(self, n_var):
@@ -26,7 +24,7 @@ class TargetDistribution(ABC):
         pass
 
     @abstractmethod
-    def direct_sample(self, size):
+    def direct_sample(self, size=1000, seed=42):
         pass
 
     def get_var_labels(self):
@@ -70,8 +68,14 @@ class GeneralNormal(TargetDistribution):
             * np.sign(diff)
         )
 
-    def direct_sample(self, size):
-        return gennorm.rvs(beta=self.beta, loc=self.mu, scale=self.alpha, size=size)
+    def direct_sample(self, size=1000, seed=42):
+        return gennorm.rvs(
+            beta=self.beta,
+            loc=self.mu,
+            scale=self.alpha,
+            size=size,
+            random_state=np.random.default_rng(seed),
+        )
 
 
 class SmoothGeneralNormal(TargetDistribution):
@@ -112,8 +116,14 @@ class SmoothGeneralNormal(TargetDistribution):
             * ((self.beta - 1) * diff**2 + 3 * self.epsilon)
         )
 
-    def direct_sample(self, size):
-        return gennorm.rvs(beta=self.beta, loc=self.mu, scale=self.alpha, size=size)
+    def direct_sample(self, size=1000, seed=42):
+        return gennorm.rvs(
+            beta=self.beta,
+            loc=self.mu,
+            scale=self.alpha,
+            size=size,
+            random_state=np.random.default_rng(seed),
+        )
 
 
 class Rosenbrock(TargetDistribution):
@@ -220,7 +230,9 @@ class Rosenbrock(TargetDistribution):
     def d3_logpi(self, x):
         return super().d3_logpi()
 
-    def direct_sample(self, size):
+    def direct_sample(self, size=1000, seed=42):
+        rng = np.random.default_rng(seed)
+
         if self.n_var == 1:
             return rng.normal(loc=self.mu, scale=(1 / np.sqrt(2 * self.a)))
 
@@ -229,7 +241,7 @@ class Rosenbrock(TargetDistribution):
         X = np.empty((n_dim, size))
 
         for t in range(size):
-            X[0, t] = rng.normal(lof=self.mu, scale=(1 / np.sqrt(2 * self.a)))
+            X[0, t] = rng.normal(loc=self.mu, scale=(1 / np.sqrt(2 * self.a)))
 
             for j in range(self.n2):
                 for i in range(1, self.n1):
