@@ -29,7 +29,7 @@ def ad_distance(X_mcmc, target, X_true=None, sample_size=10000, verbose=False):
     ad = []
 
     for i in range(target.n_var):
-        ad.append(anderson_ksamp([X_mcmc[i, :]], X_true[i, :]).statistic)
+        ad.append(anderson_ksamp([X_mcmc[i, :], X_true[i, :]]).statistic)
 
     if verbose:
         labels = target.get_var_labels()
