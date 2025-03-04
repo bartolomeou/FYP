@@ -18,7 +18,7 @@ def stochastic_approximation_adapter(h, last_accept_prob, target_accept_prob, lr
     return h
 
 
-def batch_adapter(h, accept_probs, target_accept_prob, lr=0.1, batch_size=30):
+def batch_adapter(h, accept_probs, target_accept_prob, lr=0.05, batch_size=30):
     if len(accept_probs) % batch_size == 0:
         diff = accept_probs[-1] - target_accept_prob
 

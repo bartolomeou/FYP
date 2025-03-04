@@ -17,9 +17,9 @@ def softabs(lam, alpha=1.0, small=1e-8, large=20.0):
     return lam * (np.cosh(x) / np.sinh(x))
 
 
-def project_to_pd(A, method="clip", epsilon=1e-8, alpha=1e3):
+def project_to_pd(A, method="clip", epsilon=1e-8, alpha=1.0):
     """
-    Project a matrix to the positive semidefinite cone.
+    Project a matrix to the positive definite cone.
     """
     eigenvalues, eigenvectors = np.linalg.eigh(A)
 
