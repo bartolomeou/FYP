@@ -12,9 +12,10 @@ class MetropolisHastingsMCMC(ABC):
     def __init__(self, target_accept_prob=None):
         self.target_accept_prob = target_accept_prob
 
-        self.h = None
         self.target = None
         self.n_var = None
+
+        self.h = None
 
         self.x = None
         self.logpi_x = None
@@ -50,10 +51,15 @@ class MetropolisHastingsMCMC(ABC):
 
         log_accept_prob = self.logpi_y - self.logpi_x + self.log_q_ratio()
 
+        accepted = 0
         if np.log(self.rng.uniform()) < log_accept_prob:
             self.update()
+            accepted = 1
 
-        return np.exp(min(0, log_accept_prob))
+        return {
+            "accept_prob": np.exp(min(0, log_accept_prob)),
+            "accepted": accepted,
+        }
 
     def sample(
         self,
@@ -80,7 +86,7 @@ class MetropolisHastingsMCMC(ABC):
         accept_prob_burnin = []
 
         for i in range(n_burnin_iter):
-            accept_prob = self.step()
+            accept_prob = self.step()["accept_prob"]
             accept_prob_burnin.append(accept_prob)
 
             self.h = adapter(
@@ -95,19 +101,17 @@ class MetropolisHastingsMCMC(ABC):
             X_burnin[:, i] = self.x
 
         X_main = np.empty((self.n_var, n_main_iter))
-        accept_prob_main = []
+        accept_count = 0
 
         for i in range(n_main_iter):
-            accept_prob = self.step()
-            accept_prob_main.append(accept_prob)
+            accept_count += self.step()["accepted"]
 
             X_main[:, i] = self.x
 
         return {
             "trace_main": X_main,
-            "accept_prob_main": accept_prob_main,
             "trace_burnin": X_burnin,
-            "accept_prob_burnin": accept_prob_burnin,
+            "accept_rate": accept_count / n_main_iter,
         }
 
 

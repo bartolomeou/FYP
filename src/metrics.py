@@ -9,6 +9,9 @@ def ks_distance(X_mcmc, target, X_true=None, sample_size=10000, verbose=False):
     if X_true is None:
         X_true = target.direct_sample(sample_size)
 
+    if target.n_var == 1:
+        X_true = X_true.reshape(-1, 1)
+
     ks = ks_2samp(X_mcmc, X_true, axis=1).statistic
 
     if verbose:
@@ -24,7 +27,10 @@ def ks_distance(X_mcmc, target, X_true=None, sample_size=10000, verbose=False):
 
 def ad_distance(X_mcmc, target, X_true=None, sample_size=10000, verbose=False):
     if X_true is None:
-        X_true = target.direct_sample(sample_size)
+        X_true = np.atleast_1d(target.direct_sample(sample_size))
+
+    if target.n_var == 1:
+        X_true = X_true.reshape(-1, 1)
 
     ad = []
 
@@ -70,6 +76,9 @@ def quantiles(
 
     if X_true is None:
         X_true = target.direct_sample(sample_size)
+
+    if target.n_var == 1:
+        X_true = X_true.reshape(-1, 1)
 
     df = pd.DataFrame(columns=[str(q) for q in quantiles])
 

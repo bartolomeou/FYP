@@ -30,8 +30,8 @@ class TargetDistribution(ABC):
     def get_var_labels(self):
         labels = []
 
-        for i in range(self.n_var):
-            labels.append(f"X_{{i}}")
+        for i in range(1, self.n_var + 1):
+            labels.append(f"X_{{{i}}}")
 
         return labels
 
