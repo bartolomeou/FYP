@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
 
+import time
+
 import numpy as np
 from scipy.stats import norm, multivariate_normal
-from scipy.special import logsumexp
+from scipy.special import logsumexp, expit
 
 from src.adapter import adapter
 from src.utils.pd import project_to_pd
@@ -103,15 +105,20 @@ class MetropolisHastingsMCMC(ABC):
         X_main = np.empty((self.n_var, n_main_iter))
         accept_count = 0
 
+        start_time = time.process_time_ns()
+
         for i in range(n_main_iter):
             accept_count += self.step()["accepted"]
 
             X_main[:, i] = self.x
 
+        end_time = time.process_time_ns()
+
         return {
             "trace_main": X_main,
             "trace_burnin": X_burnin,
             "accept_rate": accept_count / n_main_iter,
+            "cpu_time": end_time - start_time,
         }
 
 
@@ -153,7 +160,7 @@ class Barker(MetropolisHastingsMCMC):
             z = self.rng.normal(loc=0, scale=self.h, size=self.n_var)
 
         # Acceptance probability for each component: 1 / (1 + exp(-grad * z))
-        p_xz = 1 / (1 + np.exp(-z * self.d1_logpi_x))
+        p_xz = expit(z * self.d1_logpi_x)
 
         # b is either +1 or -1 depending on a uniform random draw
         b = 2 * (self.rng.uniform(size=self.n_var) < p_xz) - 1
@@ -165,14 +172,14 @@ class Barker(MetropolisHastingsMCMC):
 
         z = self.y - self.x
 
-        logq_xy = -logsumexp(
+        logq_xy = logsumexp(
             [np.zeros_like(z), -z * self.d1_logpi_x], axis=0
         )  # -np.log1p(np.exp(-z * self.d1_logpi_x))
-        logq_yx = -logsumexp(
-            [np.zeros_like(z), z * self.d1_logpi_y], axis=0
+        logq_yx = logsumexp(
+            [np.zeros_like(z), z * self.d1_logpi_y], axis=0  # -(-z)
         )  # -np.log1p(np.exp(z * self.d1_logpi_y))
 
-        return np.sum(logq_yx - logq_xy)
+        return np.sum(logq_xy - logq_yx)
 
     def update(self):
         super().update()
@@ -192,9 +199,11 @@ class SMBarker(MetropolisHastingsMCMC):
 
         self.d1_logpi_x = None
         self.L_x = None
+        self.det_L_x = None
 
         self.d1_logpi_y = None
         self.L_y = None
+        self.det_L_y = None
 
     def initialize(self, initial_state):
         super().initialize(initial_state)
@@ -202,11 +211,15 @@ class SMBarker(MetropolisHastingsMCMC):
 
         if self.n_var == 1:
             self.L_x = np.sqrt(-1 / self.target.d2_logpi(self.x))
+
+            self.det_L_x = self.L_x[0]
         else:
             A_x = project_to_pd(
                 np.linalg.inv(-self.target.d2_logpi(self.x)), method=self.psd_method
             )
             self.L_x = np.linalg.cholesky(A_x)  # Lower-triangular Cholesky factor
+
+            self.det_L_x = np.linalg.det(self.L_x)
 
     def propose(self):
         if self.noise == "bimodal":
@@ -216,7 +229,8 @@ class SMBarker(MetropolisHastingsMCMC):
             # z ~ Normal(mean = 0, sd = sigma)
             z = self.rng.normal(loc=0, scale=self.h, size=self.n_var)
 
-        p_xz = 1 / (1 + np.exp(-z * (self.d1_logpi_x @ self.L_x)))
+        # 1 / (1 + np.exp(-z * (self.d1_logpi_x @ self.L_x)))
+        p_xz = expit(z * (self.d1_logpi_x @ self.L_x))
 
         b = 2 * (self.rng.uniform(size=self.n_var) < p_xz) - 1
 
@@ -229,31 +243,51 @@ class SMBarker(MetropolisHastingsMCMC):
         if self.n_var == 1:
             self.L_y = np.sqrt(-1 / self.target.d2_logpi(self.y))
 
-            z_xy = (1 / self.L_x) * (self.x - self.y)
-            z_yx = (1 / self.L_y) * (self.y - self.x)
+            self.det_L_y = self.L_y[0]
+
+            z = self.y - self.x
+
+            z_xy = (1 / self.L_x) * z
+            z_yx = (1 / self.L_y) * (-z)
+
+            logpi_z_ratio = norm.pdf(
+                (1 / self.L_y) * self.L_x * z, loc=0, scale=self.h
+            ) - norm.pdf(z, loc=0, scale=self.h)
+
         else:
             A_y = project_to_pd(
                 np.linalg.inv(-self.target.d2_logpi(self.y)), method=self.psd_method
             )
             self.L_y = np.linalg.cholesky(A_y)
 
-            z_xy = np.linalg.inv(self.L_x) @ (self.x - self.y)
-            z_yx = np.linalg.inv(self.L_y) @ (self.y - self.x)
+            self.det_L_y = np.linalg.det(self.L_y)
+
+            z = self.y - self.x
+
+            z_xy = np.linalg.inv(self.L_x) @ z
+            z_yx = np.linalg.inv(self.L_y) @ (-z)
+
+            logpi_z_ratio = multivariate_normal.pdf(
+                np.linalg.inv(self.L_y) @ self.L_x @ z,
+                mean=np.zeros_like(z),
+                cov=(self.h**2),
+            ) - multivariate_normal.pdf(z, mean=np.zeros_like(z), cov=(self.h**2))
 
         # Changed @ to *, might explain the weird bimodal behaviour
-        logq_xy = -logsumexp(
-            [np.zeros_like(z_xy), z_xy * (self.d1_logpi_x @ self.L_x)], axis=0
+        logq_xy = logsumexp(
+            [np.zeros_like(z_xy), -z_xy * (self.d1_logpi_x @ self.L_x)], axis=0
         )  # -np.log1p(np.exp(z_xy * (self.d1_logpi_x @ self.L_x)))
         logq_yx = logsumexp(
-            [np.zeros_like(z_yx), z_yx * (self.d1_logpi_y @ self.L_y)], axis=0
+            [np.zeros_like(z_yx), -z_yx * (self.d1_logpi_y @ self.L_y)], axis=0
         )  # -np.log1p(np.exp(z_yx * (self.d1_logpi_y @ self.L_y)))
 
-        return np.sum(logq_yx - logq_xy)
+        return self.det_L_x - self.det_L_y + logpi_z_ratio + np.sum(logq_xy - logq_yx)
 
     def update(self):
         super().update()
         self.d1_logpi_x = self.d1_logpi_y
         self.L_x = self.L_y
+        self.det_L_x = self.det_L_y
 
 
 class MALA(MetropolisHastingsMCMC):

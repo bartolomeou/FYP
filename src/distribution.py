@@ -127,8 +127,8 @@ class SmoothGeneralNormal(TargetDistribution):
 
 
 class Rosenbrock(TargetDistribution):
-    def __init__(self, n_var, n1, n2, mu=1, a=0.05, b=5):
-        super().__init__(n_var)
+    def __init__(self, n1, n2, mu=1, a=0.05, b=5):
+        self.n_var = (n1 - 1) * n2 + 1
         self.n1 = n1
         self.n2 = n2
         self.mu = mu
