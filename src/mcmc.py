@@ -191,11 +191,11 @@ class SMBarker(MetropolisHastingsMCMC):
         self,
         target_accept_prob=0.574,
         noise="normal",
-        psd_method="clip",
+        pd_method="clip",
     ):
         super().__init__(target_accept_prob)
         self.noise = noise
-        self.psd_method = psd_method
+        self.pd_method = pd_method
 
         self.d1_logpi_x = None
         self.L_x = None
@@ -215,7 +215,7 @@ class SMBarker(MetropolisHastingsMCMC):
             self.det_L_x = self.L_x[0]
         else:
             A_x = project_to_pd(
-                np.linalg.inv(-self.target.d2_logpi(self.x)), method=self.psd_method
+                np.linalg.inv(-self.target.d2_logpi(self.x)), method=self.pd_method
             )
             self.L_x = np.linalg.cholesky(A_x)  # Lower-triangular Cholesky factor
 
@@ -256,7 +256,7 @@ class SMBarker(MetropolisHastingsMCMC):
 
         else:
             A_y = project_to_pd(
-                np.linalg.inv(-self.target.d2_logpi(self.y)), method=self.psd_method
+                np.linalg.inv(-self.target.d2_logpi(self.y)), method=self.pd_method
             )
             self.L_y = np.linalg.cholesky(A_y)
 
@@ -338,9 +338,9 @@ class MALA(MetropolisHastingsMCMC):
 
 
 class SMMALA(MetropolisHastingsMCMC):
-    def __init__(self, target_accept_prob=0.574, psd_method="abs"):
+    def __init__(self, target_accept_prob=0.574, pd_method="abs"):
         super().__init__(target_accept_prob)
-        self.psd_method = psd_method
+        self.pd_method = pd_method
 
         self.d1_logpi_x = None
         self.A_x = None
@@ -360,7 +360,7 @@ class SMMALA(MetropolisHastingsMCMC):
         else:
             self.A_x = np.linalg.inv(-self.target.d2_logpi(self.x))
             self.L_x = np.linalg.cholesky(
-                project_to_pd(self.A_x, method=self.psd_method)
+                project_to_pd(self.A_x, method=self.pd_method)
             )
 
     def propose(self):
@@ -368,7 +368,7 @@ class SMMALA(MetropolisHastingsMCMC):
 
         if self.L_x is None:  # L_x is always not None for 1d
             self.L_x = np.linalg.cholesky(
-                project_to_pd(self.A_x, method=self.psd_method)
+                project_to_pd(self.A_x, method=self.pd_method)
             )
 
         if self.n_var == 1:
@@ -407,12 +407,12 @@ class SMMALA(MetropolisHastingsMCMC):
             log_xy = multivariate_normal.logpdf(
                 self.y,
                 mean=self.x + (1 / 2) * (self.h**2) * self.A_x @ self.d1_logpi_x,
-                cov=project_to_pd((self.h**2) * self.A_x, method=self.psd_method),
+                cov=project_to_pd((self.h**2) * self.A_x, method=self.pd_method),
             )
             log_yx = multivariate_normal.logpdf(
                 self.x,
                 mean=self.y + (1 / 2) * (self.h**2) * self.A_y @ self.d1_logpi_y,
-                cov=project_to_pd((self.h**2) * self.A_y, method=self.psd_method),
+                cov=project_to_pd((self.h**2) * self.A_y, method=self.pd_method),
             )
 
         return log_yx - log_xy

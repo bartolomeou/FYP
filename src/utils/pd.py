@@ -1,20 +1,21 @@
 import numpy as np
 
 
-def softabs(lam, alpha=1.0, small=1e-8, large=20.0):
-    x = alpha * lam
+def softabs(lamb, alpha=1e6, small=1e-6, large=10):
+    x = alpha * lamb
 
-    # Near zero: lam*coth(alpha*lam) ~ 1/alpha + alpha*lam^2/3 + ...
+    # Near zero: lambda*coth(alpha*lambda) ~ 1/alpha + (alpha*lambda^2)/3 + ...
     if abs(x) < small:
         return 1.0 / alpha
 
-    # Large positive: coth(x) ~ 1, so lam*coth(x) ~ lam
-    # Large negative: coth(x) ~ -1, so lam*coth(x)
+    # Large positive: coth(x) ~ 1, so lambda*coth(x) ~ lambda
+    # Large negative: coth(x) ~ -1, so lambda*coth(x) ~ -lambda
     if abs(x) > large:
-        return abs(lam)
+        return abs(lamb)
 
-    # Otherwise, directly compute lam*coth(alpha*lam) = lam*cosh(x)/sinh(x)
-    return lam * (np.cosh(x) / np.sinh(x))
+    # Mid-range: directly compute lambda*coth(alpha*lambda) = lambda*cosh(x)/sinh(x)
+    # return lamb * (np.cosh(x) / np.sinh(x))
+    return lamb / np.tanh(x)
 
 
 def project_to_pd(A, method="clip", epsilon=1e-8, alpha=1.0):
@@ -35,11 +36,7 @@ def project_to_pd(A, method="clip", epsilon=1e-8, alpha=1.0):
         eigenvalues_soft = np.array(
             [softabs(eigenvalue, alpha) for eigenvalue in eigenvalues]
         )
-        return (
-            eigenvectors
-            @ np.diag(np.maximum(eigenvalues_soft, epsilon))
-            @ eigenvectors.T
-        )
+        return eigenvectors @ np.diag(eigenvalues_soft) @ eigenvectors.T
 
     else:
         return A
