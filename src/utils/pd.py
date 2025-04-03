@@ -1,8 +1,10 @@
 import numpy as np
 
 
-def softabs(lamb, alpha=1e6, small=1e-6, large=10):
+def softabs(lamb, alpha=1e4, small=1e-6, large=10):
     x = alpha * lamb
+
+    print(alpha, small)
 
     # Near zero: lambda*coth(alpha*lambda) ~ 1/alpha + (alpha*lambda^2)/3 + ...
     if abs(x) < small:
@@ -18,7 +20,7 @@ def softabs(lamb, alpha=1e6, small=1e-6, large=10):
     return lamb / np.tanh(x)
 
 
-def project_to_pd(A, method="clip", epsilon=1e-8, alpha=1.0):
+def project_to_pd(A, method="clip", epsilon=1e-8):
     """
     Project a matrix to the positive definite cone.
     """
@@ -33,9 +35,7 @@ def project_to_pd(A, method="clip", epsilon=1e-8, alpha=1.0):
         return eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
 
     elif method == "softabs":
-        eigenvalues_soft = np.array(
-            [softabs(eigenvalue, alpha) for eigenvalue in eigenvalues]
-        )
+        eigenvalues_soft = np.array([softabs(eigenvalue) for eigenvalue in eigenvalues])
         return eigenvectors @ np.diag(eigenvalues_soft) @ eigenvectors.T
 
     else:

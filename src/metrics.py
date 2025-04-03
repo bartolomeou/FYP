@@ -48,7 +48,7 @@ def ad_distance(X_mcmc, target, X_true=None, sample_size=10000, verbose=False):
     return ad
 
 
-def ess(X_mcmc, target, verbose=False):
+def ESS(X_mcmc, target, verbose=False):
     ess = []
 
     for i in range(target.n_var):
